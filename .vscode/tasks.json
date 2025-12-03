@@ -1,0 +1,45 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "Compile Erlang",
+            "type": "shell",
+            "command": "erl",
+            "args": [
+                "-compile",
+                "${file}"
+            ],
+            "problemMatcher": [],
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            }
+        },
+        {
+            "label": "Compile All Erlang Files",
+            "type": "shell",
+            "command": "erl",
+            "args": [
+                "-make"
+            ],
+            "problemMatcher": [],
+            "group": "build"
+        },
+        {
+            "label": "Run test_simple",
+            "type": "shell",
+            "command": "erl",
+            "args": [
+                "-noshell",
+                "-eval",
+                "test_simple:test_builder_create_block(), init:stop()."
+            ],
+            "dependsOn": ["Compile All Erlang Files"],
+            "problemMatcher": [],
+            "group": {
+                "kind": "test",
+                "isDefault": true
+            }
+        }
+    ]
+}

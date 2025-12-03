@@ -1,0 +1,16 @@
+# Fichiers compilés Erlang
+*.beam
+*.dump
+erl_crash.dump
+
+# Fichiers blockchain générés
+blockchain_*.csv
+
+# Fichiers temporaires
+*.swp
+*.swo
+*~
+
+# Fichiers système
+.DS_Store
+Thumbs.db

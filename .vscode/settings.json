@@ -1,0 +1,8 @@
+{
+    "code-runner.executorMap": {
+        "erlang": "cd $dir && erl -compile $fileNameWithoutExt.erl && erl -noshell -eval \"$fileNameWithoutExt:test_builder_create_block(), init:stop().\""
+    },
+    "code-runner.runInTerminal": true,
+    "code-runner.saveFileBeforeRun": true,
+    "code-runner.clearPreviousOutput": true
+}
