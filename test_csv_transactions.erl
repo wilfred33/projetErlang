@@ -39,7 +39,7 @@ test() ->
 
     %% Étape 5 : Attendre que des blocs soient créés
     io:format("~nStep 5: Waiting for blocks to be created (5 seconds)...~n"),
-    timer:sleep(5000),
+    timer:sleep((5 * 1000)),
 
     %% Étape 6 : Vérifier les blocs créés
     io:format("~nStep 6: Checking created blocks...~n"),

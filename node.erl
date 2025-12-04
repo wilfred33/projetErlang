@@ -2,7 +2,7 @@
 -module(node).
 -export([start/2, start/3, start_validator/3, stop/1, get_blockchain/1, get_type/1, set_proposer_group/2, get_proposer_group/1, shuffle_list/1, start_election/3]).
 -export([init/4, init_validator/6]).
--export([start_block_creation/1, stop_block_creation/1, load_transactions/2]).
+-export([start_block_creation/1, stop_block_creation/1, load_transactions/2, get_transaction_pool_size/1]).
 
 %% Types de nœuds: builder, validator, non_validator
 %% Structure: {Type_Index, Type, Blockchain, KnownNodes, StorageFile}
@@ -80,6 +80,9 @@ node_loop(NodeName, Type, Blockchain, KnownNodes, StorageFile, ElectionInProgres
     node_loop(NodeName, Type, Blockchain, KnownNodes, StorageFile, ElectionInProgress, []).
 
 node_loop(NodeName, Type, Blockchain, KnownNodes, StorageFile, ElectionInProgress, TransactionPool) ->
+    node_loop(NodeName, Type, Blockchain, KnownNodes, StorageFile, ElectionInProgress, TransactionPool, [], #{}).
+
+node_loop(NodeName, Type, Blockchain, KnownNodes, StorageFile, ElectionInProgress, TransactionPool, ProposerGroup, PendingValidations) ->
     receive
         %% Reçoit un nouveau bloc
         {new_block, Block} ->
@@ -115,16 +118,16 @@ node_loop(NodeName, Type, Blockchain, KnownNodes, StorageFile, ElectionInProgres
                             %% Broadcast le bloc aux autres nœuds
                             broadcast_block(Block, KnownNodes, NodeName),
 
-                            node_loop(NodeName, Type, NewBlockchain, KnownNodes, StorageFile, ElectionInProgress, TransactionPool);
+                            node_loop(NodeName, Type, NewBlockchain, KnownNodes, StorageFile, ElectionInProgress, TransactionPool, ProposerGroup, PendingValidations);
                         false ->
                             io:format("[~s] Block #~p rejected: invalid previous hash~n",
                                       [NodeName, block:get_number(Block)]),
-                            node_loop(NodeName, Type, Blockchain, KnownNodes, StorageFile, ElectionInProgress, TransactionPool)
+                            node_loop(NodeName, Type, Blockchain, KnownNodes, StorageFile, ElectionInProgress, TransactionPool, ProposerGroup, PendingValidations)
                     end;
                 false ->
                     io:format("[~s] Block #~p rejected: invalid block~n",
                               [NodeName, block:get_number(Block)]),
-                    node_loop(NodeName, Type, Blockchain, KnownNodes, StorageFile, ElectionInProgress, TransactionPool)
+                    node_loop(NodeName, Type, Blockchain, KnownNodes, StorageFile, ElectionInProgress, TransactionPool, ProposerGroup, PendingValidations)
             end;
 
         %% Ajoute un nœud à la liste des nœuds connus
@@ -132,36 +135,46 @@ node_loop(NodeName, Type, Blockchain, KnownNodes, StorageFile, ElectionInProgres
             case lists:member(NewNode, KnownNodes) of
                 false ->
                     io:format("[~s] Added node ~s to known nodes~n", [NodeName, NewNode]),
-                    node_loop(NodeName, Type, Blockchain, [NewNode | KnownNodes], StorageFile, ElectionInProgress, TransactionPool);
+                    node_loop(NodeName, Type, Blockchain, [NewNode | KnownNodes], StorageFile, ElectionInProgress, TransactionPool, ProposerGroup, PendingValidations);
                 true ->
-                    node_loop(NodeName, Type, Blockchain, KnownNodes, StorageFile, ElectionInProgress, TransactionPool)
+                    node_loop(NodeName, Type, Blockchain, KnownNodes, StorageFile, ElectionInProgress, TransactionPool, ProposerGroup, PendingValidations)
             end;
 
         %% Charge des transactions depuis un fichier CSV (pour builders)
         {load_transactions, TransactionFile} ->
             LoadedTransactions = load_transactions_from_csv(TransactionFile),
             io:format("[~s] Loaded ~p transactions from ~s~n", [NodeName, length(LoadedTransactions), TransactionFile]),
-            node_loop(NodeName, Type, Blockchain, KnownNodes, StorageFile, ElectionInProgress, LoadedTransactions);
+            node_loop(NodeName, Type, Blockchain, KnownNodes, StorageFile, ElectionInProgress, LoadedTransactions, ProposerGroup, PendingValidations);
 
         %% Retourne la blockchain
         {get_blockchain, From} ->
             From ! {blockchain, Blockchain},
-            node_loop(NodeName, Type, Blockchain, KnownNodes, StorageFile, ElectionInProgress, TransactionPool);
+            node_loop(NodeName, Type, Blockchain, KnownNodes, StorageFile, ElectionInProgress, TransactionPool, ProposerGroup, PendingValidations);
 
         %% Retourne le type du nœud
         {get_type, From} ->
             From ! {node_type, Type},
-            node_loop(NodeName, Type, Blockchain, KnownNodes, StorageFile, ElectionInProgress, TransactionPool);
+            node_loop(NodeName, Type, Blockchain, KnownNodes, StorageFile, ElectionInProgress, TransactionPool, ProposerGroup, PendingValidations);
+
+        %% Retourne la taille du pool de transactions
+        {get_transaction_pool_size, From} ->
+            From ! {transaction_pool_size, length(TransactionPool)},
+            node_loop(NodeName, Type, Blockchain, KnownNodes, StorageFile, ElectionInProgress, TransactionPool, ProposerGroup, PendingValidations);
+
+        %% Définit le ProposerGroup (pour builders)
+        {set_proposer_group, NewProposerGroup} ->
+            io:format("[~s] ProposerGroup set: ~p~n", [NodeName, NewProposerGroup]),
+            node_loop(NodeName, Type, Blockchain, KnownNodes, StorageFile, ElectionInProgress, TransactionPool, NewProposerGroup, PendingValidations);
 
         %% Élection commence (pour builders/non_validators)
         {start_election} ->
             io:format("[~s] Election started - block creation PAUSED~n", [NodeName]),
-            node_loop(NodeName, Type, Blockchain, KnownNodes, StorageFile, true, TransactionPool);
+            node_loop(NodeName, Type, Blockchain, KnownNodes, StorageFile, true, TransactionPool, ProposerGroup, PendingValidations);
 
         %% Nouvelle epoch commence (pour builders/non_validators)
         {start_new_epoch} ->
             io:format("[~s] New epoch - block creation RESUMED~n", [NodeName]),
-            node_loop(NodeName, Type, Blockchain, KnownNodes, StorageFile, false, TransactionPool);
+            node_loop(NodeName, Type, Blockchain, KnownNodes, StorageFile, false, TransactionPool, ProposerGroup, PendingValidations);
 
         %% Message interne pour la création de bloc (builders seulement)
         {create_block_tick} when Type =:= builder ->
@@ -169,23 +182,64 @@ node_loop(NodeName, Type, Blockchain, KnownNodes, StorageFile, ElectionInProgres
                 true ->
                     %% Élection en cours : ne pas créer de bloc, ignorer le tick
                     io:format("[~s] Skipping block creation (election in progress)~n", [NodeName]),
-                    node_loop(NodeName, Type, Blockchain, KnownNodes, StorageFile, ElectionInProgress, TransactionPool);
+                    node_loop(NodeName, Type, Blockchain, KnownNodes, StorageFile, ElectionInProgress, TransactionPool, ProposerGroup, PendingValidations);
                 false ->
                     %% Pas d'élection : créer un bloc avec les transactions du pool
                     {NewTransactionPool, UsedTransactions} = take_transactions(TransactionPool, 10),
                     case UsedTransactions of
                         [] ->
                             %% Pas de transactions disponibles, skip
-                            node_loop(NodeName, Type, Blockchain, KnownNodes, StorageFile, ElectionInProgress, TransactionPool);
+                            node_loop(NodeName, Type, Blockchain, KnownNodes, StorageFile, ElectionInProgress, TransactionPool, ProposerGroup, PendingValidations);
                         _ ->
-                            create_and_broadcast_block(NodeName, Blockchain, KnownNodes, StorageFile, UsedTransactions),
-                            %% Envoie le prochain tick après un délai
-                            timer:sleep(500),
-                            NodeAtom = list_to_atom(NodeName),
-                            NodeAtom ! {create_block_tick},
-                            node_loop(NodeName, Type, Blockchain, KnownNodes, StorageFile, ElectionInProgress, NewTransactionPool)
+                            create_and_broadcast_block(NodeName, Blockchain, ProposerGroup, StorageFile, UsedTransactions),
+                            %% NE PAS envoyer le prochain tick - attendre la validation
+                            node_loop(NodeName, Type, Blockchain, KnownNodes, StorageFile, ElectionInProgress, NewTransactionPool, ProposerGroup, PendingValidations)
                     end
             end;
+
+        %% Bloc approuvé par un validateur du ProposerGroup
+        {block_approved, BlockHash, ValidatorName} ->
+            io:format("[~s] Block approved by ~s~n", [NodeName, ValidatorName]),
+
+            %% Ajoute l'approbation
+            CurrentApprovals = maps:get(BlockHash, PendingValidations, []),
+            NewApprovals = [ValidatorName | CurrentApprovals],
+            NewPendingValidations = maps:put(BlockHash, NewApprovals, PendingValidations),
+
+            %% Vérifie si on a la majorité (> 50%)
+            TotalValidators = length(ProposerGroup),
+            MajorityThreshold = (TotalValidators div 2) + 1,
+
+            case length(NewApprovals) >= MajorityThreshold of
+                true ->
+                    io:format("[~s] MAJORITY REACHED (~p/~p)! Broadcasting block to all nodes~n",
+                             [NodeName, length(NewApprovals), TotalValidators]),
+
+                    %% Récupère le bloc depuis la blockchain ou le crée à partir du hash
+                    %% Pour simplifier, on broadcast le dernier bloc créé
+                    LastBlock = lists:last(Blockchain),
+                    broadcast_block(LastBlock, KnownNodes, NodeName),
+
+                    %% Nettoie les validations en attente pour ce bloc
+                    CleanedValidations = maps:remove(BlockHash, NewPendingValidations),
+
+                    %% Envoie le prochain tick après un délai
+                    timer:sleep(500),
+                    NodeAtom = list_to_atom(NodeName),
+                    NodeAtom ! {create_block_tick},
+
+                    node_loop(NodeName, Type, Blockchain, KnownNodes, StorageFile, ElectionInProgress, TransactionPool, ProposerGroup, CleanedValidations);
+                false ->
+                    io:format("[~s] Approvals: ~p/~p (waiting for majority)~n",
+                             [NodeName, length(NewApprovals), MajorityThreshold]),
+                    node_loop(NodeName, Type, Blockchain, KnownNodes, StorageFile, ElectionInProgress, TransactionPool, ProposerGroup, NewPendingValidations)
+            end;
+
+        %% Bloc rejeté par un validateur
+        {block_rejected_by, _BlockHash, ValidatorName} ->
+            io:format("[~s] Block REJECTED by ~s~n", [NodeName, ValidatorName]),
+            %% TODO: gérer les rejets (pour l'instant on ignore)
+            node_loop(NodeName, Type, Blockchain, KnownNodes, StorageFile, ElectionInProgress, TransactionPool, ProposerGroup, PendingValidations);
 
         %% Arrête le nœud
         stop ->
@@ -195,7 +249,7 @@ node_loop(NodeName, Type, Blockchain, KnownNodes, StorageFile, ElectionInProgres
         %% Message inconnu
         Unknown ->
             io:format("[~s] Unknown message: ~p~n", [NodeName, Unknown]),
-            node_loop(NodeName, Type, Blockchain, KnownNodes, StorageFile, ElectionInProgress, TransactionPool)
+            node_loop(NodeName, Type, Blockchain, KnownNodes, StorageFile, ElectionInProgress, TransactionPool, ProposerGroup, PendingValidations)
     end.
 
 %% Broadcast un bloc à tous les nœuds connus (sauf l'émetteur)
@@ -298,6 +352,20 @@ get_type(NodeName) when is_list(NodeName) ->
         _:_ -> {error, node_not_found}
     end.
 
+%% API pour obtenir la taille du pool de transactions
+get_transaction_pool_size(NodeName) when is_list(NodeName) ->
+    try
+        NodeAtom = list_to_atom(NodeName),
+        NodeAtom ! {get_transaction_pool_size, self()},
+        receive
+            {transaction_pool_size, Size} -> {ok, Size}
+        after 5000 ->
+            {error, timeout}
+        end
+    catch
+        _:_ -> {error, node_not_found}
+    end.
+
 %% Arrête un nœud
 stop(NodeName) when is_list(NodeName) ->
     try
@@ -370,8 +438,8 @@ start_block_creation(NodeName) when is_list(NodeName) ->
 stop_block_creation(_Pid) ->
     ok.
 
-%% Crée et broadcast un nouveau bloc (utilise la logique de builder.erl)
-create_and_broadcast_block(NodeName, Blockchain, _KnownNodes, _StorageFile, Transactions) ->
+%% Crée et broadcast un nouveau bloc AU PROPOSER GROUP SEULEMENT (pour validation)
+create_and_broadcast_block(NodeName, Blockchain, ProposerGroup, _StorageFile, Transactions) ->
     %% Calcule le numéro du prochain bloc et l'index de départ
     {BlockNumber, StartTxIndex} = case Blockchain of
         [] ->
@@ -386,33 +454,41 @@ create_and_broadcast_block(NodeName, Blockchain, _KnownNodes, _StorageFile, Tran
     end,
 
     %% Création du bloc
-    case BlockNumber of
+    {NewBlock, PrevHashInfo} = case BlockNumber of
         0 ->
             %% Bloc genesis : utilise un hash nul (tous zéros) comme PrevHash
             NullHash = <<0:256>>,
-            NewBlock = block:new(BlockNumber, NodeName, NullHash, Transactions, StartTxIndex),
-
-            io:format("[~s] Created genesis block #~p with ~p transactions (null PrevHash)~n",
-                      [NodeName, BlockNumber, length(Transactions)]),
-
-            %% Envoie le bloc au builder node pour qu'il le traite
-            BuilderAtom = list_to_atom(NodeName),
-            BuilderAtom ! {new_block, NewBlock},
-            ok;
+            Block = block:new(BlockNumber, NodeName, NullHash, Transactions, StartTxIndex),
+            {Block, "null PrevHash"};
         _ ->
             %% Bloc normal : utilise le hash du bloc précédent
             PrevBlock = lists:last(Blockchain),
             PrevBlockHash = block:hash(PrevBlock),
-            NewBlock = block:new(BlockNumber, NodeName, PrevBlockHash, Transactions, StartTxIndex),
+            Block = block:new(BlockNumber, NodeName, PrevBlockHash, Transactions, StartTxIndex),
+            {Block, "valid PrevHash"}
+    end,
 
-            io:format("[~s] Created block #~p with ~p transactions (indices ~p-~p)~n",
-                      [NodeName, BlockNumber, length(Transactions), StartTxIndex, StartTxIndex + length(Transactions) - 1]),
+    io:format("[~s] Created block #~p with ~p transactions (~s)~n",
+              [NodeName, BlockNumber, length(Transactions), PrevHashInfo]),
 
-            %% Envoie le bloc au builder node pour qu'il le traite
-            BuilderAtom = list_to_atom(NodeName),
-            BuilderAtom ! {new_block, NewBlock},
-            ok
-    end.
+    %% ENVOIE LE BLOC AU PROPOSER GROUP SEULEMENT (pas à tout le monde!)
+    case ProposerGroup of
+        [] ->
+            io:format("[~s] WARNING: No ProposerGroup set! Cannot validate block.~n", [NodeName]);
+        _ ->
+            io:format("[~s] Sending block #~p to ProposerGroup for validation: ~p~n",
+                     [NodeName, BlockNumber, ProposerGroup]),
+            lists:foreach(fun(ValidatorName) ->
+                ValidatorAtom = list_to_atom(ValidatorName),
+                ValidatorAtom ! {validate_block, NewBlock, NodeName}
+            end, ProposerGroup)
+    end,
+
+    %% Ajoute le bloc à la blockchain locale du builder (avant validation)
+    BuilderAtom = list_to_atom(NodeName),
+    BuilderAtom ! {new_block, NewBlock},
+
+    ok.
 
 %%% ========================================
 %%% Fonctions pour les validateurs (Partie 2)
@@ -451,6 +527,7 @@ start_election(HeadValidatorName, AllValidators, AllNodes) ->
 
     %% Le head shuffle la liste initiale
     InitialShuffled = shuffle_list(AllValidators),
+   
 
     %% Le head retire son propre nom pour créer la liste des validateurs restants
     %% Ces validateurs vont shuffle à tour de rôle
@@ -583,6 +660,7 @@ validator_loop(NodeName, Blockchain, AllValidators, AllNodes, KnownNodes, Storag
 
             %% Re-shuffle la liste
             NewShuffledList = shuffle_list(ShuffledList),
+          
 
             case RemainingValidators of
                 %% Plus personne : la liste revient au head initiateur
@@ -653,6 +731,47 @@ validator_loop(NodeName, Blockchain, AllValidators, AllNodes, KnownNodes, Storag
             io:format("[~s] New epoch started! Block creation RESUMED.~n", [NodeName]),
             %% Remet ElectionInProgress à false
             validator_loop(NodeName, Blockchain, AllValidators, AllNodes, KnownNodes, StorageFile, ProposerGroup, false);
+
+        %% ===== ProposerGroup: Validation de blocs =====
+
+        %% Reçoit un bloc à valider (uniquement si on fait partie du ProposerGroup)
+        {validate_block, Block, BuilderName} ->
+            io:format("[~s] Received block #~p from ~s for VALIDATION~n",
+                     [NodeName, block:get_number(Block), BuilderName]),
+
+            %% Vérifie si ce validateur fait partie du ProposerGroup
+            IsMemberOfProposerGroup = lists:member(NodeName, ProposerGroup),
+
+            case IsMemberOfProposerGroup of
+                false ->
+                    io:format("[~s] NOT in ProposerGroup - IGNORING validation request~n", [NodeName]),
+                    validator_loop(NodeName, Blockchain, AllValidators, AllNodes, KnownNodes, StorageFile, ProposerGroup, ElectionInProgress);
+                true ->
+                    %% Valide le bloc
+                    IsValid = block:is_valid(Block),
+                    BlockHash = block:hash(Block),
+
+                    case IsValid of
+                        true ->
+                            io:format("[~s] Block #~p is VALID - sending approval to ~s~n",
+                                     [NodeName, block:get_number(Block), BuilderName]),
+
+                            %% Envoie l'approbation au builder
+                            BuilderAtom = list_to_atom(BuilderName),
+                            BuilderAtom ! {block_approved, BlockHash, NodeName},
+
+                            validator_loop(NodeName, Blockchain, AllValidators, AllNodes, KnownNodes, StorageFile, ProposerGroup, ElectionInProgress);
+                        false ->
+                            io:format("[~s] Block #~p is INVALID - sending rejection to ~s~n",
+                                     [NodeName, block:get_number(Block), BuilderName]),
+
+                            %% Envoie le rejet au builder
+                            BuilderAtom = list_to_atom(BuilderName),
+                            BuilderAtom ! {block_rejected_by, BlockHash, NodeName},
+
+                            validator_loop(NodeName, Blockchain, AllValidators, AllNodes, KnownNodes, StorageFile, ProposerGroup, ElectionInProgress)
+                    end
+            end;
 
         %% Arrête le nœud
         stop ->

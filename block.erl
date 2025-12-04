@@ -93,7 +93,19 @@ from_csv_line(Line) ->
             MerkleRoot = hex_to_hash(MerkleRootHex),
             PrevHash = hex_to_hash(PrevHashHex),
             TxIDs = string:split(TxIDsStr, ";", all),
-            {block, BlockNum, MerkleRoot, BuilderAddress, PrevHash, TxIDs};
+
+            %% Extrait TxStartIndex depuis le premier ID de transaction
+            TxStartIndex = case TxIDs of
+                [] -> 1;
+                [""] -> 1;
+                [FirstIdStr | _] ->
+                    case string:to_integer(FirstIdStr) of
+                        {FirstId, _} -> FirstId;
+                        _ -> 1
+                    end
+            end,
+
+            {block, BlockNum, MerkleRoot, BuilderAddress, PrevHash, TxIDs, TxStartIndex};
         _ ->
             {error, invalid_format}
     end.

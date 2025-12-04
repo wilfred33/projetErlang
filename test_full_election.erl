@@ -7,8 +7,8 @@ test() ->
 
     %% Étape 1 : Créer les listes de nœuds
     io:format("Step 1: Creating node lists...~n"),
-    AllValidators = ["Validator_1", "Validator_2", "Validator_3"],
-    Builders = ["Builder_1", "Builder_2"],
+    AllValidators = ["Validator_1", "Validator_2", "Validator_3","Validator_4","Validator_5"],
+    Builders = ["Builder_1"],
     AllNodes = AllValidators ++ Builders,
     io:format("  All validators: ~p~n", [AllValidators]),
     io:format("  Builders: ~p~n", [Builders]),
@@ -19,7 +19,7 @@ test() ->
     lists:foreach(fun(Index) ->
         {ok, Pid, Name} = node:start(builder, Index, AllNodes),
         io:format("  Started ~s (PID: ~p)~n", [Name, Pid])
-    end, lists:seq(1, 2)),
+    end, lists:seq(1, 1)),
 
     timer:sleep(200),
 
@@ -29,7 +29,7 @@ test() ->
         %% KnownNodes = tous les autres nœuds (validateurs + builders)
         {ok, Pid, Name} = node:start_validator(Index, AllValidators, Builders),
         io:format("  Started ~s (PID: ~p)~n", [Name, Pid])
-    end, lists:seq(1, 3)),
+    end, lists:seq(1, 5)),
 
     timer:sleep(500),
 
@@ -53,7 +53,7 @@ test() ->
     node:start_election(HeadValidator, AllValidators, AllNodes),
 
     %% Attendre que l'élection se termine
-    timer:sleep(1000),
+    timer:sleep(6000),
 
     %% Étape 6 : Vérifier le nouveau proposer group
     io:format("~nStep 6: Checking new proposer group...~n"),
