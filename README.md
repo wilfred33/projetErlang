@@ -1,30 +1,30 @@
-# Projet Blockchain Erlang avec Proof of Stake et Secret Leader Election
+# Erlang Blockchain with Proof of Stake and Secret Leader Election
 
-Implémentation d'une blockchain en Erlang utilisant l'algorithme Whisk pour l'élection secrète des leaders.
+Implementation of a blockchain in Erlang using the Whisk algorithm for secret leader election.
 
-## Structure du Projet
+## Project Structure
 
-- **transaction.erl** : Gestion des transactions
-- **merkle_tree.erl** : Implémentation de l'arbre de Merkle
-- **block.erl** : Structure et validation des blocs
-- **node.erl** : Logique des nœuds (validators, builders, non-validators)
-- **part1.erl** : Création automatique de blocs avec transactions CSV
-- **part2.erl** : Test du processus d'élection avec logging
-- **part3.erl** : Block controller avec élections automatiques
+- **transaction.erl**: Transaction management
+- **merkle_tree.erl**: Merkle tree implementation
+- **block.erl**: Block structure and validation
+- **node.erl**: Node logic (validators, builders, non-validators)
+- **part1.erl**: Automatic block creation with CSV transactions
+- **part2.erl**: Election process testing with logging
+- **part3.erl**: Block controller with automatic elections
 
-## Instructions de Test
+## Test Instructions
 
-### Prérequis
+### Prerequisites
 
-Assurez-vous d'avoir Erlang installé sur votre système.
+Make sure you have Erlang installed on your system.
 
-### Partie 1 : Création Automatique de Blocs
+### Part 1: Automatic Block Creation
 
-**Objectif** : Tester la création automatique de blocs à partir d'un fichier CSV de transactions.
+**Objective**: Test automatic block creation from a CSV transaction file.
 
-**Étapes** :
+**Steps**:
 
-1. **Compiler les modules nécessaires** :
+1. **Compile required modules**:
 ```bash
 erl -compile transaction.erl
 erl -compile merkle_tree.erl
@@ -33,34 +33,47 @@ erl -compile node.erl
 erl -compile part1.erl
 ```
 
-2. **Lancer le test** :
+2. **Run the test**:
 ```bash
 erl -noshell -s part1 test
 ```
 
-**OU utiliser le script batch** :
+**OR use the batch script**:
 ```bash
 test_part1.bat
 ```
 
-**Ce qui se passe** :
-- Démarre 5 nœuds non-validators
-- Démarre 1 builder
-- Charge les transactions depuis `trasactions2.csv`
-- Le builder crée automatiquement un bloc toutes les 0.5 secondes avec 10 transactions
-- Les blocs sont broadcast à tous les nœuds
+**What happens**:
+- Starts 5 non-validator nodes
+- Starts 1 builder
+- Loads transactions from `trasactions2.csv`
+- Builder automatically creates a block every 0.5 seconds with 10 transactions
+- Blocks are broadcast to all nodes
 
-**Pour arrêter** : Appuyez sur `Ctrl+C` puis `a` (abort)
+**To stop**: Press `Ctrl+C` then `a` (abort)
+
+#### **Testing with custom parameters**
+
+To test Part1 with a different number of nodes or CSV file:
+
+```bash
+erl -noshell -eval "part1:start(10, \"transactions.csv\"), init:stop()."
+```
+
+Examples:
+- `part1:start(3, "trasactions2.csv")`: 3 nodes, trasactions2.csv file
+- `part1:start(10, "transactions.csv")`: 10 nodes, transactions.csv file
+- `part1:start(7, "my_transactions.csv")`: 7 nodes, custom file
 
 ---
 
-### Partie 2 : Test du Processus d'Élection
+### Part 2: Election Process Testing
 
-**Objectif** : Observer et mesurer le processus d'élection Whisk avec enregistrement détaillé des opérations.
+**Objective**: Observe and measure the Whisk election process with detailed operation logging.
 
-**Étapes** :
+**Steps**:
 
-1. **Compiler les modules nécessaires** :
+1. **Compile required modules**:
 ```bash
 erl -compile transaction.erl
 erl -compile merkle_tree.erl
@@ -69,46 +82,62 @@ erl -compile node.erl
 erl -compile part2.erl
 ```
 
-2. **Lancer le test** :
+2. **Run the test**:
 ```bash
 erl -noshell -s part2 test
 ```
 
-**OU utiliser le script batch** :
+**OR use the batch script**:
 ```bash
 test_part2.bat
 ```
 
-**Ce qui se passe** :
-- Démarre 3 validators
-- Lance une élection avec l'algorithme Whisk
-- Affiche le ProposerGroup actuel avant l'élection
-- Affiche les listes shufflées à chaque étape du processus
-- Mesure la durée de l'élection
-- Génère le ProposerGroup final
+**What happens**:
+- Starts 3 validators
+- Launches an election with the Whisk algorithm
+- Displays current ProposerGroup before election
+- Displays shuffled lists at each step of the process
+- Measures election duration
+- Generates final ProposerGroup
 
-**Fichiers générés** :
-- `Validator_1_election_log.txt` : Log détaillé du Validator 1
-- `Validator_2_election_log.txt` : Log détaillé du Validator 2
-- `Validator_3_election_log.txt` : Log détaillé du Validator 3
-- `election_results.txt` : Résumé de l'élection
+**Generated files**:
+- `Validator_1_election_log.txt`: Detailed log for Validator 1
+- `Validator_2_election_log.txt`: Detailed log for Validator 2
+- `Validator_3_election_log.txt`: Detailed log for Validator 3
+- `election_results.txt`: Election summary
 
-**Informations affichées** :
-- ProposerGroup actuel de chaque validator
-- Liste shufflée initiale du head validator
-- Listes reçues et envoyées par chaque validator
-- ProposerGroup final élu
-- Durée totale de l'élection
+**Information displayed**:
+- Current ProposerGroup of each validator
+- Initial shuffled list from head validator
+- Lists received and sent by each validator
+- Final elected ProposerGroup
+- Total election duration
+
+#### **Testing with custom parameters**
+
+To test Part2 with a different number of validators:
+
+```bash
+erl -noshell -eval "part2:start(5), init:stop()."
+```
+
+Examples:
+- `part2:start(3)`: 3 validators (default test)
+- `part2:start(5)`: 5 validators
+- `part2:start(10)`: 10 validators
+- `part2:start(20)`: 20 validators
+
+**Note**: More validators means longer election time as each validator must shuffle the list in turn.
 
 ---
 
-### Partie 3 : Block Controller avec Élections Automatiques
+### Part 3: Block Controller with Automatic Elections
 
-**Objectif** : Tester le système complet avec un contrôleur centralisé qui gère les blocs et déclenche les élections automatiquement tous les 10 blocs.
+**Objective**: Test the complete system with a centralized controller that manages blocks and automatically triggers elections every 10 blocks.
 
-**Étapes** :
+**Steps**:
 
-1. **Compiler tous les modules** :
+1. **Compile all modules**:
 ```bash
 erl -compile transaction.erl
 erl -compile merkle_tree.erl
@@ -117,132 +146,160 @@ erl -compile node.erl
 erl -compile part3.erl
 ```
 
-2. **Lancer le test** :
+2. **Run the test**:
 ```bash
 erl -noshell -s part3 test
 ```
 
-**Ce qui se passe** :
-- Démarre 3 validators
-- Démarre 2 nœuds non-validators
-- Crée un transaction pool centralisé avec 300 transactions
-- Le block controller :
-  - Envoie 10 transactions au builder actuel
-  - Attend la création du bloc
-  - Répète jusqu'à 10 blocs
-  - Déclenche automatiquement une élection
-  - Change le builder selon le résultat de l'élection
-  - Remet le compteur à 0 et continue
+**What happens**:
+- Starts 3 validators
+- Starts 2 non-validator nodes
+- Creates a centralized transaction pool with 300 transactions
+- The block controller:
+  - Sends 10 transactions to the current builder
+  - Waits for block creation
+  - Repeats for 10 blocks
+  - Automatically triggers an election
+  - Changes builder according to election result
+  - Resets counter to 0 and continues
 
-**Cycles observables** :
-- **Epoch 0** : Blocs 0-9 créés par le builder initial
-- **Élection 1** : Nouveau ProposerGroup élu
-- **Epoch 1** : Blocs 10-19 créés par le nouveau builder
-- **Élection 2** : Nouveau ProposerGroup élu
-- Et ainsi de suite jusqu'à épuisement des transactions
+**Automatic stop**: The system stops when there are no more transactions available.
 
-**Arrêt automatique** : Le système s'arrête quand il n'y a plus de transactions disponibles.
+#### **Testing with custom parameters**
+
+To test Part3 with different parameters:
+
+```bash
+erl -noshell -eval "part3:start(TotalNodes, NumValidators, \"file.csv\"), init:stop()."
+```
+
+**Parameters**:
+- `TotalNodes`: Total number of nodes (validators + non-validators)
+- `NumValidators`: Number of validators
+- `"file.csv"`: CSV file containing transactions
+
+**Examples**:
+
+```bash
+# Default configuration (10 total nodes, 3 validators, 7 non-validators)
+erl -noshell -eval "part3:start(10, 3, \"trasactions2.csv\"), init:stop()."
+
+# More validators (20 total nodes, 5 validators, 15 non-validators)
+erl -noshell -eval "part3:start(20, 5, \"transactions.csv\"), init:stop()."
+
+# Minimal configuration (3 total nodes, 3 validators, 0 non-validators)
+erl -noshell -eval "part3:start(3, 3, \"trasactions2.csv\"), init:stop()."
+
+# Large configuration (50 total nodes, 10 validators, 40 non-validators)
+erl -noshell -eval "part3:start(50, 10, \"transactions.csv\"), init:stop()."
+```
+
+**Important notes**:
+- `NumValidators` must be ≤ `TotalNodes`
+- ProposerGroup size will be `max(1, NumValidators div 10)` (10% of validators)
+- More validators means longer elections
+- Non-validators receive blocks but don't participate in elections
 
 ---
 
-## Scripts de Compilation et Déploiement
+## Compilation Scripts
 
-### Compilation Simple
+### Simple Compilation
 
-Pour compiler tous les modules à la fois :
+To compile all modules at once:
 ```bash
 erl -compile transaction.erl merkle_tree.erl block.erl node.erl part1.erl part2.erl part3.erl
 ```
 
-### Script de Compilation et Push
+### Compilation Script
 
-Le fichier `compile_and_push.bat` compile tous les modules et push le code sur GitHub :
+The `compile.bat` file compiles all modules:
 ```bash
-compile_and_push.bat
+compile.bat
 ```
 
 ---
 
-## Détails de l'Algorithme Whisk
+## Data Files
 
-L'algorithme Whisk (Secret Leader Election) fonctionne en plusieurs étapes :
-
-1. **Initialisation** : Le validator head initie l'élection et broadcast à tous les nœuds
-2. **Shuffle en cascade** : Chaque validator shuffle la liste et la passe au suivant
-3. **Sélection finale** : Le dernier validator envoie la liste au head initiateur
-4. **Broadcast du résultat** : Le head sélectionne le ProposerGroup (10% des validators) et le broadcast
-
-### Exemple avec 3 Validators
-
-```
-Validator_1 (head):
-  └─> Shuffle initial : ["V1", "V2", "V3"] → ["V3", "V1", "V2"]
-  └─> Envoie à Validator_2
-
-Validator_2:
-  └─> Reçoit : ["V3", "V1", "V2"]
-  └─> Re-shuffle : ["V3", "V1", "V2"] → ["V2", "V3", "V1"]
-  └─> Envoie à Validator_3
-
-Validator_3 (dernier):
-  └─> Reçoit : ["V2", "V3", "V1"]
-  └─> Re-shuffle : ["V2", "V3", "V1"] → ["V1", "V2", "V3"]
-  └─> Envoie au head Validator_1
-
-Validator_1:
-  └─> Reçoit : ["V1", "V2", "V3"]
-  └─> Sélectionne ProposerGroup : ["V1"] (10% de 3 = 1)
-  └─> Broadcast à tous les validators
-```
+- **transactions.csv**: Test transaction file
+- **trasactions2.csv**: Alternative transaction file (used by default in part1)
 
 ---
 
-## Fichiers de Données
+## ALWAYS CLEAN GENERATED CSV FILES AFTER EACH RUN
 
-- **transactions.csv** : Fichier de transactions de test
-- **trasactions2.csv** : Fichier alternatif de transactions (utilisé par défaut dans part1)
-
----
-
-## Architecture Part 3
-
-### Block Controller
-Le Block Controller est un processus centralisé qui :
-- Gère le transaction pool
-- Contrôle quel validator crée les blocs
-- Déclenche les élections tous les 10 blocs
-- Change automatiquement le builder selon le résultat des élections
-
-### Transaction Pool
-Pool centralisé de transactions géré comme un processus Erlang.
-
-### Différences Part2 vs Part3
-
-| Aspect | Part 2 | Part 3 |
-|--------|--------|--------|
-| **Builder** | Statique | Dynamique (change après élections) |
-| **Élections** | Manuelle (une seule fois) | Automatiques (tous les 10 blocs) |
-| **Transactions** | Aucune | Pool centralisé de 300 transactions |
-| **Contrôle** | Test simple | Block controller centralisé |
-| **Objectif** | Observer l'élection | Système blockchain complet |
-
----
-
-## Nettoyage des Fichiers Générés
-
-Les fichiers `.beam` (compilés), `.csv` (blockchain), et logs d'élection peuvent être nettoyés avec :
+Generated files `.beam` (compiled), `.csv` (blockchain), and election logs can be cleaned with:
 
 ```bash
 rm *.beam blockchain_*.csv *_election_log.txt election_results.txt
 ```
 
-Sous Windows :
+On Windows:
 ```cmd
 del /Q *.beam blockchain_*.csv *_election_log.txt election_results.txt
 ```
 
 ---
 
-## Auteurs
+## Whisk Algorithm Details
 
-Projet de blockchain Erlang avec système d'élection secrète (Whisk algorithm).
+The Whisk (Secret Leader Election) algorithm works in several steps:
+
+1. **Initialization**: The head validator initiates the election and broadcasts to all nodes
+2. **Cascading shuffle**: Each validator shuffles the list and passes it to the next
+3. **Final selection**: The last validator sends the list to the head initiator
+4. **Result broadcast**: The head selects the ProposerGroup (10% of validators) and broadcasts it
+
+### Example with 3 Validators
+
+```
+Validator_1 (head):
+  └─> Initial shuffle: ["V1", "V2", "V3"] → ["V3", "V1", "V2"]
+  └─> Send to Validator_2
+
+Validator_2:
+  └─> Receives: ["V3", "V1", "V2"]
+  └─> Re-shuffle: ["V3", "V1", "V2"] → ["V2", "V3", "V1"]
+  └─> Send to Validator_3
+
+Validator_3 (last):
+  └─> Receives: ["V2", "V3", "V1"]
+  └─> Re-shuffle: ["V2", "V3", "V1"] → ["V1", "V2", "V3"]
+  └─> Send to head Validator_1
+
+Validator_1:
+  └─> Receives: ["V1", "V2", "V3"]
+  └─> Selects ProposerGroup: ["V1"] (10% of 3 = 1)
+  └─> Broadcast to all validators
+```
+
+---
+
+## Part 3 Architecture
+
+### Block Controller
+The Block Controller is a centralized process that:
+- Manages the transaction pool
+- Controls which validator creates blocks
+- Triggers elections every 10 blocks
+- Automatically changes the builder according to election results
+
+### Transaction Pool
+Centralized transaction pool managed as an Erlang process.
+
+### Differences Part2 vs Part3
+
+| Aspect | Part 2 | Part 3 |
+|--------|--------|--------|
+| **Builder** | Static | Dynamic (changes after elections) |
+| **Elections** | Manual (once) | Automatic (every 10 blocks) |
+| **Transactions** | None | Centralized pool of 300 transactions |
+| **Control** | Simple test | Centralized block controller |
+| **Objective** | Observe election | Complete blockchain system |
+
+---
+
+## Authors
+
+Erlang blockchain project with secret election system (Whisk algorithm).
