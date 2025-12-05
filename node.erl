@@ -631,6 +631,27 @@ validator_loop(NodeName, Blockchain, AllValidators, AllNodes, KnownNodes, Storag
             From ! {node_type, validator},
             validator_loop(NodeName, Blockchain, AllValidators, AllNodes, KnownNodes, StorageFile, ProposerGroup, ElectionInProgress);
 
+        %% Crée un bloc avec des transactions spécifiques (pour Part 3)
+        {create_block_with_transactions, Transactions} ->
+            io:format("[~s] Creating block with ~p transactions from controller~n",
+                     [NodeName, length(Transactions)]),
+
+            case ElectionInProgress of
+                true ->
+                    io:format("[~s] Skipping block creation (election in progress)~n", [NodeName]),
+                    validator_loop(NodeName, Blockchain, AllValidators, AllNodes, KnownNodes, StorageFile, ProposerGroup, ElectionInProgress);
+                false ->
+                    %% Crée et broadcast le bloc
+                    create_and_broadcast_block(NodeName, Blockchain, ProposerGroup, StorageFile, Transactions),
+                    validator_loop(NodeName, Blockchain, AllValidators, AllNodes, KnownNodes, StorageFile, ProposerGroup, ElectionInProgress)
+            end;
+
+        %% Bloc approuvé par un validator du ProposerGroup (pour Part 3)
+        {block_approved, BlockHash, ValidatorName} ->
+            io:format("[~s] Block approved by ~s (hash: ~p) - ignoring in Part 3~n",
+                     [NodeName, ValidatorName, BlockHash]),
+            validator_loop(NodeName, Blockchain, AllValidators, AllNodes, KnownNodes, StorageFile, ProposerGroup, ElectionInProgress);
+
         %% ===== Nouveaux messages pour l'élection =====
 
         %% Définit le proposer group
