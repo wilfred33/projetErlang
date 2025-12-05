@@ -533,7 +533,8 @@ start_election(HeadValidatorName, AllValidators, AllNodes) ->
 
     %% Le head shuffle la liste initiale
     InitialShuffled = shuffle_list(AllValidators),
-    Event3 = "Performed initial shuffle of validator list",
+    io:format("[Election] Head validator ~s initial shuffle: ~p~n", [HeadValidatorName, InitialShuffled]),
+    Event3 = lists:flatten(io_lib:format("Performed initial shuffle of validator list: ~p", [InitialShuffled])),
     try part2:log_election_event(HeadValidatorName, Event3) catch _:_ -> ok end,
 
     %% Le head retire son propre nom pour créer la liste des validateurs restants
@@ -551,7 +552,8 @@ start_election(HeadValidatorName, AllValidators, AllNodes) ->
             HeadAtom ! {election_complete, InitialShuffled};
         [FirstValidator | Rest] ->
             io:format("[Election] Sending to first validator: ~s~n", [FirstValidator]),
-            Event4 = lists:flatten(io_lib:format("Sending shuffle to first validator: ~s", [FirstValidator])),
+            io:format("[Election] Shuffled list being sent: ~p~n", [InitialShuffled]),
+            Event4 = lists:flatten(io_lib:format("Sending shuffle to first validator: ~s. List: ~p", [FirstValidator, InitialShuffled])),
             try part2:log_election_event(HeadValidatorName, Event4) catch _:_ -> ok end,
             FirstValidatorAtom = list_to_atom(FirstValidator),
             FirstValidatorAtom ! {shuffle_round, InitialShuffled, Rest, HeadValidatorName}
@@ -680,8 +682,10 @@ validator_loop(NodeName, Blockchain, AllValidators, AllNodes, KnownNodes, Storag
         %% Message 1 : Début d'élection (envoyé par le head)
         {start_election} ->
             io:format("[~s] Election started! Block creation PAUSED.~n", [NodeName]),
+            io:format("[~s] Current ProposerGroup before election: ~p~n", [NodeName, ProposerGroup]),
             %% Log l'événement pour Part 2
-            try part2:log_election_event(NodeName, "Election started - block creation PAUSED") catch _:_ -> ok end,
+            Event = lists:flatten(io_lib:format("Election started - block creation PAUSED. Current ProposerGroup: ~p", [ProposerGroup])),
+            try part2:log_election_event(NodeName, Event) catch _:_ -> ok end,
             %% Passe ElectionInProgress à true
             validator_loop(NodeName, Blockchain, AllValidators, AllNodes, KnownNodes, StorageFile, ProposerGroup, true);
 
@@ -691,20 +695,23 @@ validator_loop(NodeName, Blockchain, AllValidators, AllNodes, KnownNodes, Storag
         %% Initiator : le head qui a lancé l'élection
         {shuffle_round, ShuffledList, RemainingValidators, Initiator} ->
             io:format("[~s] Received shuffle round. Remaining: ~p~n", [NodeName, length(RemainingValidators)]),
+            io:format("[~s] Received shuffled list: ~p~n", [NodeName, ShuffledList]),
             %% Log l'événement
-            Event1 = lists:flatten(io_lib:format("Received shuffle round from previous validator. Remaining validators: ~p", [length(RemainingValidators)])),
+            Event1 = lists:flatten(io_lib:format("Received shuffle round from previous validator. Remaining validators: ~p, List: ~p", [length(RemainingValidators), ShuffledList])),
             try part2:log_election_event(NodeName, Event1) catch _:_ -> ok end,
 
             %% Re-shuffle la liste
             NewShuffledList = shuffle_list(ShuffledList),
-            Event2 = "Shuffled the list",
+            io:format("[~s] After my shuffle: ~p~n", [NodeName, NewShuffledList]),
+            Event2 = lists:flatten(io_lib:format("Shuffled the list. New order: ~p", [NewShuffledList])),
             try part2:log_election_event(NodeName, Event2) catch _:_ -> ok end,
 
             case RemainingValidators of
                 %% Plus personne : la liste revient au head initiateur
                 [] ->
                     io:format("[~s] Shuffle complete, sending back to initiator: ~s~n", [NodeName, Initiator]),
-                    Event3 = lists:flatten(io_lib:format("Last validator in shuffle chain - sending result back to initiator ~s", [Initiator])),
+                    io:format("[~s] Final shuffled list being sent: ~p~n", [NodeName, NewShuffledList]),
+                    Event3 = lists:flatten(io_lib:format("Last validator in shuffle chain - sending result back to initiator ~s. Final list: ~p", [Initiator, NewShuffledList])),
                     try part2:log_election_event(NodeName, Event3) catch _:_ -> ok end,
                     InitiatorAtom = list_to_atom(Initiator),
                     InitiatorAtom ! {election_complete, NewShuffledList},
@@ -713,7 +720,8 @@ validator_loop(NodeName, Blockchain, AllValidators, AllNodes, KnownNodes, Storag
                 %% Il reste des validateurs : envoyer au suivant
                 [NextValidator | Rest] ->
                     io:format("[~s] Shuffling and sending to: ~s~n", [NodeName, NextValidator]),
-                    Event3 = lists:flatten(io_lib:format("Forwarding shuffle to next validator: ~s", [NextValidator])),
+                    io:format("[~s] Sending shuffled list to next validator: ~p~n", [NodeName, NewShuffledList]),
+                    Event3 = lists:flatten(io_lib:format("Forwarding shuffle to next validator: ~s. List sent: ~p", [NextValidator, NewShuffledList])),
                     try part2:log_election_event(NodeName, Event3) catch _:_ -> ok end,
                     NextValidatorAtom = list_to_atom(NextValidator),
                     NextValidatorAtom ! {shuffle_round, NewShuffledList, Rest, Initiator},

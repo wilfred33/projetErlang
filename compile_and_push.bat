@@ -19,19 +19,6 @@ echo.
 echo ========================================
 echo Compilation complete!
 echo ========================================
-
-echo.
-echo ========================================
-echo Pushing code to GitHub...
-echo ========================================
-
-git add .
-git commit -m "Update Part 2: Add election logging and tracking functionality"
-git push
-
-echo.
-echo ========================================
-echo Done!
-echo ========================================
+================================
 
 pause
