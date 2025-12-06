@@ -14,9 +14,17 @@ Implementation of a blockchain in Erlang using the Whisk algorithm for secret le
 
 ## Test Instructions
 
-### Prerequisites
+### Prerequisites && Warnings
 
 Make sure you have Erlang installed on your system.
+
+ALWAYS CLEAN GENERATED CSV FILES AFTER EACH RUN
+
+Generated files `.beam` (compiled), `.csv` (blockchain), and election logs can be cleaned with:
+
+```bash
+rm *.beam blockchain_*.csv *_election_log.txt election_results.txt
+```
 
 ### Part 1: Automatic Block Creation
 
@@ -57,7 +65,7 @@ test_part1.bat
 To test Part1 with a different number of nodes or CSV file:
 
 ```bash
-erl -noshell -eval "part1:start(10, \"transactions.csv\"), init:stop()."
+erl -noshell -eval "part1:start(10, \`"transactions.csv\`"), init:stop()."
 ```
 
 Examples:
@@ -148,7 +156,7 @@ erl -compile part3.erl
 
 2. **Run the test**:
 ```bash
-erl -noshell -s part3 test
+erl -noshell -s part3 test  >> logs_test3.txt
 ```
 
 **What happens**:
@@ -182,16 +190,16 @@ erl -noshell -eval "part3:start(TotalNodes, NumValidators, \"file.csv\"), init:s
 
 ```bash
 # Default configuration (10 total nodes, 3 validators, 7 non-validators)
-erl -noshell -eval "part3:start(10, 3, \"trasactions2.csv\"), init:stop()."
+erl -noshell -eval "part3:start(10, 3, \`"trasactions2.csv\`"), init:stop()." >> test_part3_10-3.txt
 
 # More validators (20 total nodes, 5 validators, 15 non-validators)
-erl -noshell -eval "part3:start(20, 5, \"transactions.csv\"), init:stop()."
+erl -noshell -eval "part3:start(20, 5, \`"trasactions2.csv\`"), init:stop()." >> test_part3_20-5.txt
 
 # Minimal configuration (3 total nodes, 3 validators, 0 non-validators)
-erl -noshell -eval "part3:start(3, 3, \"trasactions2.csv\"), init:stop()."
+erl -noshell -eval "part3:start(3, 3, \`"trasactions2.csv\`"), init:stop()." >> test_part3_3-3.txt
 
 # Large configuration (50 total nodes, 10 validators, 40 non-validators)
-erl -noshell -eval "part3:start(50, 10, \"transactions.csv\"), init:stop()."
+erl -noshell -eval "part3:start(50, 10, \`"trasactions2.csv\`"), init:stop()." >> test_part3_50-10.txt
 ```
 
 **Important notes**:
@@ -223,7 +231,7 @@ compile.bat
 ## Data Files
 
 - **transactions.csv**: Test transaction file
-- **trasactions2.csv**: Alternative transaction file (used by default in part1)
+- **trasactions2.csv**: Alternative transaction file (used by default in part1 && part 3)
 
 ---
 
@@ -242,64 +250,4 @@ del /Q *.beam blockchain_*.csv *_election_log.txt election_results.txt
 
 ---
 
-## Whisk Algorithm Details
 
-The Whisk (Secret Leader Election) algorithm works in several steps:
-
-1. **Initialization**: The head validator initiates the election and broadcasts to all nodes
-2. **Cascading shuffle**: Each validator shuffles the list and passes it to the next
-3. **Final selection**: The last validator sends the list to the head initiator
-4. **Result broadcast**: The head selects the ProposerGroup (10% of validators) and broadcasts it
-
-### Example with 3 Validators
-
-```
-Validator_1 (head):
-  └─> Initial shuffle: ["V1", "V2", "V3"] → ["V3", "V1", "V2"]
-  └─> Send to Validator_2
-
-Validator_2:
-  └─> Receives: ["V3", "V1", "V2"]
-  └─> Re-shuffle: ["V3", "V1", "V2"] → ["V2", "V3", "V1"]
-  └─> Send to Validator_3
-
-Validator_3 (last):
-  └─> Receives: ["V2", "V3", "V1"]
-  └─> Re-shuffle: ["V2", "V3", "V1"] → ["V1", "V2", "V3"]
-  └─> Send to head Validator_1
-
-Validator_1:
-  └─> Receives: ["V1", "V2", "V3"]
-  └─> Selects ProposerGroup: ["V1"] (10% of 3 = 1)
-  └─> Broadcast to all validators
-```
-
----
-
-## Part 3 Architecture
-
-### Block Controller
-The Block Controller is a centralized process that:
-- Manages the transaction pool
-- Controls which validator creates blocks
-- Triggers elections every 10 blocks
-- Automatically changes the builder according to election results
-
-### Transaction Pool
-Centralized transaction pool managed as an Erlang process.
-
-### Differences Part2 vs Part3
-
-| Aspect | Part 2 | Part 3 |
-|--------|--------|--------|
-| **Builder** | Static | Dynamic (changes after elections) |
-| **Elections** | Manual (once) | Automatic (every 10 blocks) |
-| **Transactions** | None | Centralized pool of 300 transactions |
-| **Control** | Simple test | Centralized block controller |
-| **Objective** | Observe election | Complete blockchain system |
-
----
-
-## Authors
-
-Erlang blockchain project with secret election system (Whisk algorithm).
