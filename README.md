@@ -253,7 +253,7 @@ The Whisk (Secret Leader Election) algorithm works in several steps:
 
 ### Example with 3 Validators
 
-```
+```bash
 Validator_1 (head):
   └─> Initial shuffle: ["V1", "V2", "V3"] → ["V3", "V1", "V2"]
   └─> Send to Validator_2
