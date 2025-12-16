@@ -249,5 +249,3 @@ del /Q *.beam blockchain_*.csv *_election_log.txt election_results.txt
 ```
 
 ---
-
-
